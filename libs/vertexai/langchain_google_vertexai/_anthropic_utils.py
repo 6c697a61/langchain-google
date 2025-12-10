@@ -348,6 +348,9 @@ def _clean_content_block(block: Any) -> Any:
     Anthropic's streaming API adds `index` and `partial_json` fields to content blocks
     during streaming. These fields must be removed before sending back to the API.
 
+    Additionally, the Anthropic API rejects 'id' fields in TEXT content blocks,
+    but TOOL_USE blocks must retain their 'id' for tool_result matching.
+
     Args:
         block: Content block (`dict`, `str`, or other type)
 
@@ -357,10 +360,14 @@ def _clean_content_block(block: Any) -> Any:
     if not isinstance(block, dict):
         return block
 
-    # Remove known streaming metadata fields
-    # 'index' - added during streaming to track block position
-    # 'partial_json' - added during streaming for incremental JSON parsing
-    return {k: v for k, v in block.items() if k not in ("index", "partial_json")}
+    block_type = block.get("type")
+
+    # tool_use blocks must keep 'id' for matching with tool_result
+    if block_type == "tool_use":
+        return {k: v for k, v in block.items() if k not in ("index", "partial_json")}
+
+    # For text and other blocks, also remove 'id' (rejected by Anthropic API)
+    return {k: v for k, v in block.items() if k not in ("index", "partial_json", "id")}
 
 
 def _clean_content(content: Any) -> Any:
